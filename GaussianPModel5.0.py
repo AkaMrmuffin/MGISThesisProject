@@ -1,10 +1,21 @@
+# Name:     Monte Carlo Ground-Level Gaussian Plume Model (MCGGPM)
+# Purpose:  The purpose of this is to simulate the Gaussian Plume Model by using Monte Carlo Method 
+# Input:    The observed O&G facilities, A table which contains the long-term Wind speed,and the nearest downwind distance 
+#           of each facility, and A Emission size distribution.   
+# Output:   Simulated concentrations of O&G facilities at the nearest downwind road intersections  
+# Author:   Mozhou Gao
+# Project:  MGIS Final Proejct 
+# Created:  16/04/2018
+# Copyright:(c) mozhou.gao 2018
+
+## Loading side Packages 
 import numpy as np
 import pandas as pd
 import scipy.stats as stats
 import random
 from random import randint
 
-## function
+## functions 
 # Leaks Initiation Function
 def Init_leak(s):
     # Default Average leaks per facilities number -> 6
@@ -34,8 +45,13 @@ def findsize(leakn):
 
     return Emsize
 
-
+# Brigg's Formula
+# Calculating the lateral and vertical dispersion parameters
 def calsigma(ws,x):
+    # Assumptions: 1. Moderate Incoming Radiation
+    #              2. Open Country
+    # ws -> the wind speed 
+    # x -> Downwind distance
     x = np.float32(x)
     if ws<2:
         sigy = 0.22*x*(1+0.0001*x)**(-1/2)
@@ -53,14 +69,16 @@ def calsigma(ws,x):
     return sigy,sigz
 
 
-## Draw a value based on the mean and standard deviation
+# Draw a value based on the mean and standard deviation
 def drawvalue(mu,sigma):
+    # mu->Mean 
+    # sigma -> Standard Deviation 
     sob = stats.norm(loc = mu, scale= sigma)
     sdist = sob.rvs(1000)
     G = random.choice(sdist)
     return G
 
-# Manually Create Effective Stack Height Distribution
+## Manually Create Effective Stack Height Distribution
 aa = np.zeros(10000)
 a = np.ones(5000)
 aa[0:5000] = a
@@ -78,51 +96,60 @@ ESH = list(aa)
 
 ## Import Brooks Facility data
 df = pd.read_csv('FacTable.csv',sep=',')
-# # Mean Wind Speed
+# Mean Wind Speed
 mws = df.iloc[:,2]
 dd = df.iloc[:,3]
 
-# Load the FWAQS tabel
+## Load the FWAQS tabel
 Qdf = pd.read_excel(r'C:\Users\mozhou\Desktop\GaussianPlumeModel\FWAQS_distribution.xls')
+# Extract the emisison size column (g/s)
 sized = Qdf.iloc[:,3]
 
 #### Main Model ####
+# repetition 
 rep = 1000
+# repetition index
 r = 0
+# Result Storage List 
 MCC = []
+# Main while loop 
 while r<rep:
     i = 0
-    # Concentration
+    # each rep's concentration list
     C = []
     while i<n:
-        # Wind Speed & Downwind distance
+        #  Reading Wind Speed & Downwind distance
         x = dd[i]
         ws = mws[i]
-
+        # Check Limitation of GPM
         if x < 100:
-
             x = 100
+            # Calcualting lateral and vertical dispersion parameters 
             sigy,sigz = calsigma(ws,x)
+            # Initialize leaks 
             ln = Init_leak(1000)
             if ln>0:
+                # Calculating the total emission size 
                 Q = findsize(ln)
+                # local maximum ground-level downwind GPM
                 c = (Q*np.exp(-1))/(np.pi*ws*sigy*sigz)
                 C.append(c)
             else:
                 C.append(0)
 
         else:
-            # Calculate the lateral and vertical dispersion
+            # Calculating the lateral and vertical dispersion parameters
             sigy,sigz = calsigma(ws,x)
 
             # Initialize the leaks
             ln = Init_leak(1000)
 
             if ln>0:
-                # Random Select leaks size
+                # Calculating the total emission size 
                 Q = findsize(ln)
 
-                # Gasussian Plume Model
+                # Regular Ground-Level downwind GPM
+                # Sampling the Effective Stack Height
                 H = random.sample(ESH, 1)[0]
                 Hsq = H**2
                 brak = np.exp(-Hsq/(2*sigz**2))
