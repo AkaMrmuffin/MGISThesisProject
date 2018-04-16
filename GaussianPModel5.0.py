@@ -3,8 +3,8 @@
 # Input:    The observed O&G facilities, A table which contains the long-term Wind speed,and the nearest downwind distance 
 #           of each facility, and A Emission size distribution.   
 # Output:   Simulated concentrations of O&G facilities at the nearest downwind road intersections  
-# Author:   Mozhou Gao
-# Project:  MGIS Final Proejct 
+# Author:   MOZHOU GAO
+# Project:  MGIS Final Project 
 # Created:  16/04/2018
 # Copyright:(c) mozhou.gao 2018
 
@@ -22,7 +22,7 @@ def Init_leak(s):
     # Maximum
     # s is sample size of normal distribution
     # xdim and ydim should equal to the shape of H
-    # Formulate the nomral distribution for each cell
+    # Formulate the normal distribution for each cell
     mu=6
     maxl=12
     minl = 0
@@ -35,7 +35,7 @@ def Init_leak(s):
 
     return leak
 
-#  Emission Size Generation Funciton
+#  Emission Size Generation Function
 def findsize(leakn):
     # lam -> mean value of the EmissionSize distribution
     # Leakn -> Initial leaks number 2D array
@@ -100,9 +100,9 @@ df = pd.read_csv('FacTable.csv',sep=',')
 mws = df.iloc[:,2]
 dd = df.iloc[:,3]
 
-## Load the FWAQS tabel
+## Load the FWAQS table
 Qdf = pd.read_excel(r'C:\Users\mozhou\Desktop\GaussianPlumeModel\FWAQS_distribution.xls')
-# Extract the emisison size column (g/s)
+# Extract the emission size column (g/s)
 sized = Qdf.iloc[:,3]
 
 #### Main Model ####
@@ -124,7 +124,7 @@ while r<rep:
         # Check Limitation of GPM
         if x < 100:
             x = 100
-            # Calcualting lateral and vertical dispersion parameters 
+            # Calculating lateral and vertical dispersion parameters 
             sigy,sigz = calsigma(ws,x)
             # Initialize leaks 
             ln = Init_leak(1000)
