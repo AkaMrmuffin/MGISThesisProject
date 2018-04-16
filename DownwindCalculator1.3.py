@@ -1,3 +1,14 @@
+# Name:     Downwind Distance Calculator (DDC)
+# Purpose:  The purpose of this is to Calculate the average downwind distance from O&G 
+#           facilities to nearest road at Alberta.
+# Input:    Alberta O&G Facility Feature Class, Alberta Public Road, and ERA-Interim 10-meater U&V Wind Components.   
+# Output:   Downwind Distance form O&G Facility to nearest downwind road intersections 
+# Author:   Mozhou Gao
+# Project:  MGIS Final Proejct 
+# Created:  20/02/2018
+# Copyright:(c) mozhou.gao 2018
+
+## Loading side Packages
 import arcpy as ac
 import netCDF4 as nc
 import numpy as np
@@ -10,12 +21,13 @@ import gc
 from os import listdir
 from os.path import isfile, join
 
+## Record start time 
 T1 = datetime.datetime.now()
 print T1
 
 def windcal(u,v):
-    #windcal can calculate the overall wind direction based on
-    #input u and v wind component
+    # windcal can calculate the overall wind direction based on
+    # Input u and v wind component
     ws = (u**2 + v**2)**0.5
     wd = np.arctan2(v,u)
     wd_ang = wd *180/np.pi
@@ -23,15 +35,15 @@ def windcal(u,v):
 
     return wd_ang,ws
 
-#Read Wind Files
+# Read Wind Files
 mypath = r'C:\Users\mozhou\Desktop\GaussianPlumeModel\WindData\Data'
 files = [f for f in listdir(mypath) if isfile(join(mypath, f))]
 for f in files:
     print "Wind Data Loaded"
-    dfile = nc.Dataset(r'C:\Users\mozhou\Desktop\GaussianPlumeModel\WindData\Data\%s' % f,'r')
+    winduv = nc.Dataset(r'C:\Users\mozhou\Desktop\GaussianPlumeModel\WindData\Data\%s' % f,'r')
 
 
-    #Extract Dimension
+    # Extract Dimensions
     lat = winduv.variables['latitude'][:]
     lon = winduv.variables['longitude'][:]
     time = winduv.variables['time'][:]
@@ -39,48 +51,50 @@ for f in files:
     lo = len(lon)
     t = len(time)
 
-    #Calculate cell size
+    # Calculate cell size
     cellsize = lat[1]-lat[0]
-    #Calculate Raster lower left/rght angle
+    # Calculate Raster lower left/rght angle
     X,Y = np.meshgrid(lon,lat)
     lowerleftlat = Y[la-1][0]
     lowerleftlong = X[la-1][0]
 
-    #Iterate Wind data
+    # Iterate the day of each year 
     index = 0
-
-    #Distance Array
+    
+    # Store the distance
+    # Distance Array
     MD = []
-
+    
+    # Set the workspace for splitted feature class
     ac.env.workspace =r"C:\Users\mozhou\Desktop\TestGDB\TheSplit.gdb"
     fcs = ac.ListFeatureClasses()
     for pt in fcs:
-
+        # Assign the O&G facilities
         point = pt
 
         while index<t:
             # Part I
-            # read u and v wind component
+            # read u and v wind component based on time index 
             u = winduv.variables['u10'][index,:,:]
             v = winduv.variables['v10'][index,:,:]
 
-            #ccalculate wind direction and wind speed
+            # Calculate wind direction and wind speed
             WD, WS = windcal(u,v)
             print "Finish the Calculation of Resultant Wind Direction at Day: " + str(index + 1)
-            #cconvert wind direction/wind speed numpy array to raster object
+            # Convert wind direction/wind speed numpy array to raster object
             WdRaster = ac.NumPyArrayToRaster(WD, arcpy.Point(lowerleftlong,lowerleftlat),
                                             0.125,0.125,-9999)
 
 
-            # define the projection for raster file
+            # Define the projection for raster file
             # NAD1983(CSRS)
             sr = ac.SpatialReference(4617)
             ac.DefineProjection_management(WdRaster, sr)
 
-            #prject Ratser file, and save it in the scratchworkspace
+            # prject Ratser file, and save it in the scratch workspace
             ac.env.workspace = r"C:\Users\mozhou\Desktop\TestGDB\ScrachRasterSpace"
             prjrs_file = "WD" + str(index+1)
-            #set new projection - North_America_Equidistant_Conic (Preserve The Distance)
+            # set new projection - North_America_Equidistant_Conic (Preserve The Distance)
             proj = ac.SpatialReference(102010)
             ac.ProjectRaster_management (WdRaster,prjrs_file, proj, "NEAREST")
 
@@ -96,7 +110,7 @@ for f in files:
 
             print "Wind Direction Raster Extracted"
 
-            #clear raster scratch workspace
+            # Clear raster scratch workspace
             ac.env.workspace = r"C:\Users\mozhou\Desktop\TestGDB\ScrachRasterSpace"
             rasters = ac.ListRasters()
             for rs in rasters:
@@ -104,22 +118,22 @@ for f in files:
 
             print "The temporary raster files Number for zone  "+ str(pt) + "of day " + str(index+1)+ "was deleted"
 
-            #Part II
-            #Set the temporary bearline and interception path
+            # Part II
+            # Set the temporary bearline and interception path
             bearline =r'C:\Users\mozhou\Desktop\TestGDB\Scratch.gdb\bearline'
             InterPt = r'C:\Users\mozhou\Desktop\TestGDB\Scratch.gdb\Interpoints'
-            points = pt #if not work try %s
+            points = pt
             Road =  r'C:\Users\mozhou\Desktop\TestGDB\Roads.gdb\AB_roads_prj'
-            #Set the related attributes' name
+            # Set the related attributes' name
             distfield = "MaxD"
             bearingfield = prjrs_file
             distunit = 'KILOMETERS'
             angelunit = 'DEGREES'
             linetype = 'GEODESIC'
-            # BearingDistanceToLine//!!!!!!add Field X and Y!!!!
+            # BearingDistanceToLine
             ac.BearingDistanceToLine_management(points, bearline, 'X', 'Y', distfield,distunit,bearingfield, angelunit, linetype)
 
-            #create a intersection point
+            # Create a intersection point
             ac.Intersect_analysis ([Road, bearline],InterPt, "", "", 'POINT')
 
             print"Bearline and intersection points were created for " + str(pt)
@@ -131,21 +145,23 @@ for f in files:
             F1 = ['OBJECTID','SHAPE@']
             F2 = ['FID_bearline','SHAPE@']
 
-            #create search Cursors
-            #facility points
+            # Create search Cursors
+            # Facility points
             c1 =ac.da.SearchCursor(points,F1)
 
-            #Create empty list for record distance
+            # Create empty list for record distance
             D = []
+            # Feature ID 
             D.append(int(pt[1:5]))
+            # Time ID
             D.append(index+1)
-            #Calculate Distance
+            # Calculate Distance
             for row1 in c1:
 
                 f_id = row1[0]
                 f_geometry = row1[1]
                 distlist = []
-                # reinitialise the intersection points
+                # Reinitialise the intersection points
                 c2 = ac.da.SearchCursor(InterPt,F2)
                 for row2 in c2:
                     interid  = row2[0]
@@ -171,25 +187,27 @@ for f in files:
 
             print "The scratch GDB is clear Now!"
 
-
-
             index = index + 1
             print "Day: " + str(index)
-
+        
+        # Report the finished feature class 
         print str(pt) + " Done!"
 
 
-
-    print "Loop end Here, Day: " + str(index)
+    
+    # Report the finished year
+    print "Good Luck with this Year!"
+    # Convert result to array
     MD_arr=np.array(MD)
-
-    dfile.close()
-
+    # Close the .nc file  
+    winduv.close()
+    # Save the result of current year
     dist_df = pd.DataFrame(MD_arr)
     dist_df.to_csv(r"C:\Users\mozhou\Desktop\TestGDB\dist2%s.csv" % f,sep=',')
 
+    
 print 'Calculation Finished!!!'
-
+# report the overall calculating time
 T2 = datetime.datetime.now()
 print T2-T1
 
